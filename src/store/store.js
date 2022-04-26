@@ -4,58 +4,50 @@ import * as d3 from 'd3';
 
 Vue.use(Vuex);
 
+const POSSIBLE_CATEGORIES = {
+  BUNDESLAND: "Bundesland",
+  VERKEHRSART: "Verkehrsart",
+  GEBIET: "Gebiet",
+  WOCHENTAG: "Wochentag",
+  GESCHLECHT: "Geschlecht"
+};
+
 const store = new Vuex.Store({
   state: {
-    selectedYear: 2006,
-    selectedStates: [],
-    educationRates: [],
-    personalIncome: [],
+    selectedCategory: POSSIBLE_CATEGORIES.BUNDESLAND,
+    baseData: {},
   },
   mutations: {
-    changeSelectedYear (state, year) {
-      state.selectedYear = year;
-    },
-    changeSelectedState(state, val) {
-      state.selectedStates.push(val);
-    }   
+    changeSelectedCategory (state, category) { state.selectedCategory = category; }
   },
   getters: {
-    selectedYear: (state) => state.selectedYear,
-    selectedStates: (state) => state.selectedStates,
-    educationRates (state) {
-      let result = [];
-      for (let i = 0; i < state.educationRates.length; i++) {
-        if (state.selectedYear in state.educationRates[i]) {
-          result.push({
-            state: state.educationRates[i].State,
-            value: +state.educationRates[i][state.selectedYear]
-          })
-        }
-      }
-      return result;
+    baseData: (state) => state.baseData,
+    selectedCategory: (state) => state.selectedCategory,
+    possibleYears: (state) => {
+      return [...new Set(state.baseData.verkehrstote.map(d => d.Jahr))].sort();
     },
-    personalIncome (state) {
-      let result = [];
-      for (let i = 0; i < state.personalIncome.length; i++) {
-        if (state.selectedYear in state.personalIncome[i]) {
-          result.push({
-            state: state.personalIncome[i].State,
-            value: state.personalIncome[i][state.selectedYear]
-          })
-        }
-      }
-      return result;
+    possibleLabels: (state) => {
+      return [...new Set(state.baseData.verkehrstote.map(d => d[state.selectedCategory]))].sort();
     },
+    colorArray: () => {
+      return ['#000063','#75008f','#999999','#00c22a','#0081c2','#ffff33','#e35f00','#c20000','#00d69a'];
+    },
+    dataByCategory: (state) => {
+      let dataByCategory = d3.rollup(state.baseData.verkehrstote, d => d3.sum(d, d => d.Getoetete), d => d.Jahr, d => d[state.selectedCategory]);
+      return new Map([...dataByCategory].sort());
+    },
+    labelBundesland: () =>{ return POSSIBLE_CATEGORIES.BUNDESLAND; },
+    labelVerkehrsart: () =>{ return POSSIBLE_CATEGORIES.VERKEHRSART; },
+    labelGebiet: () =>{ return POSSIBLE_CATEGORIES.GEBIET; },
+    labelWochentag: () =>{ return POSSIBLE_CATEGORIES.WOCHENTAG; },
+    labelGeschlecht: () =>{ return POSSIBLE_CATEGORIES.GESCHLECHT; },
+    possibleCategories: () => {return Object.values(POSSIBLE_CATEGORIES); }
   },
   actions: {
     loadData({state}) {
-      d3.csv('./usa_ba-degree-or-higher_2006-2019.csv').then((data) => { 
-        state.educationRates = data;
-      })
-
-      d3.csv('./usa_personal-income-by-state_2006-2019.csv').then((data) => { 
-        state.personalIncome = data;
-      })
+      d3.json("https://dashboards.kfv.at/api/verkehrstote/json").then((data)=> {
+        state.baseData = data;
+      }).catch(err => console.log(err));
     },
   }
 })
